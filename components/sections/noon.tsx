@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -8,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { CheckCircle2, XCircle, HelpCircle, ArrowRight, Sparkles, Lightbulb, Laugh, Zap, Heart } from "lucide-react"
 import dynamic from "next/dynamic"
+import { saveQuizAnswer } from "@/lib/supabase"
 
 // Import Confetti component with dynamic import to avoid SSR issues
 const Confetti = dynamic(() => import("@/components/confetti"), {
@@ -20,8 +22,6 @@ export default function Noon() {
   const [showResult, setShowResult] = useState(false)
   const [selectedOption, setSelectedOption] = useState<string>("")
   const [showConfetti, setShowConfetti] = useState(false)
-  const [timer, setTimer] = useState(15)
-  const [timerActive, setTimerActive] = useState(false)
   const [mounted, setMounted] = useState(false)
 
   // New fun features
@@ -36,28 +36,8 @@ export default function Noon() {
 
   const questions = [
     {
-      question: "اليوم اللي اتولدت فيه كان يوم ايه؟",
-      options: ["جمعه", "تلات", "اتنين", "سبت"],
-      correctAnswer: "جمعه", // Replace with actual answer
-    },
-    {
-      question: "ايه أكتر حاجه بحب اسمعها منك؟",
-      options: ["انا جنبك", "وحشتني", "بحبك", "مرتاحه معاك"],
-      correctAnswer: "مرتاحه معاك", // Replace with actual answer
-    },
-    {
-      question: "اول صدفه حصلت عالحقيقه واتخضينا منها؟",
-      options: [ "اما اختارنا مسرحية السرايا فنفس الوقت", "قولنا اسم حاجه تبدأ بحرف ال ب", "اما اتقابلنا تحت عند الكانتين","غيرهم",],
-    },
-    {
-      question: "اليوم اول مره مثلت تحت لما سندت عالحيطه كنت طالع مين اللي ميت؟",
-      options: ["امي", "ابويا", "الاتنين", "مكانش في حد ميت"],
-      correctAnswer: "الاتنين",
-    },
-    {
-      question: "ايه اكتر اغنيه بحبها؟",
-      options: ["ايوه يا حبيبتي وحشتيني", "عايز انام", "الليل وسماه", "امشي بتاعت تومي"],
-      correctAnswer: "امشي بتاعت تومي", // Replace with actual answer
+      question: "ردك هيوصلي",
+      type: "text" // This indicates it's a text input question
     },
   ]
 
@@ -93,51 +73,17 @@ export default function Noon() {
   useEffect(() => {
     // Mark component as mounted
     setMounted(true)
+  }, [])
 
-    if (timerActive && timer > 0) {
-      const interval = setInterval(() => {
-        setTimer((prev) => prev - 1)
-      }, 1000)
-
-      return () => clearInterval(interval)
-    } else if (timerActive && timer === 0) {
-      handleAnswer()
-    }
-  }, [timerActive, timer])
-
-  // Start timer on first render, but only after mounting
-  useEffect(() => {
-    if (mounted) {
-      startTimer()
-    }
-  }, [mounted])
-
-  const startTimer = () => {
-    setTimer(15)
-    setTimerActive(true)
-  }
-
-  // دالة مساعدة للمقارنة المرنة
-  function normalize(str: string) {
-    return str
-      .replace(/ال/g, "") // إزالة 'ال' التعريف
-      .replace(/[^\u0621-\u064A\w]/g, "") // إزالة الرموز غير العربية/الإنجليزية
-      .toLowerCase();
-  }
-
-  function containsEst3radat(answer: string) {
-    const normalized = normalize(answer);
-    const accepted = ["استعراضات", "est3radat", "alest3radat","الاستعراضات","استعرضات","الاستعرضات","استعراض","الاستعراض"];
-    return accepted.some(word => normalized.includes(normalize(word)));
-  }
-
-  const handleAnswer = () => {
-    setTimerActive(false)
+  const handleAnswer = async () => {
 
     let answerToSave = selectedOption;
     if (currentQuestion === 2 && selectedOption === "غيرهم" && customAnswer.trim()) {
       answerToSave = customAnswer.trim();
     }
+
+    // Save the answer to Supabase
+    await saveQuizAnswer(questions[currentQuestion].question, answerToSave || "No answer");
 
     if (!selectedOption) {
       // If time ran out without selection
@@ -152,27 +98,14 @@ export default function Noon() {
       setCurrentQuestion(currentQuestion + 1)
       setSelectedOption("")
       setCustomAnswer("")
-      setTimeout(() => {
-        startTimer()
-      }, 500)
     } else {
       setShowResult(true)
-      const correctCount = getCorrectAnswersCount()
-      if (correctCount === questions.length) {
-        setShowConfetti(true)
-      }
+      setShowConfetti(true) // Always show confetti since all answers are accepted
     }
   }
 
-  const getCorrectAnswersCount = () => {
-    return answers.filter((answer, index) => {
-      if (index === 2) {
-        if (typeof answer === "string" && containsEst3radat(answer)) {
-          return true;
-        }
-      }
-      return answer === questions[index].correctAnswer;
-    }).length;
+  const getAnswersCount = () => {
+    return answers.filter(answer => answer.trim() !== "").length;
   }
 
   const resetQuiz = () => {
@@ -181,9 +114,6 @@ export default function Noon() {
     setShowResult(false)
     setSelectedOption("")
     setShowConfetti(false)
-    setTimeout(() => {
-      startTimer()
-    }, 500)
   }
 
   // Fortune teller function
@@ -257,24 +187,15 @@ export default function Noon() {
           <h1 className="text-3xl font-bold bg-gradient-to-r from-amber-500 to-orange-600 bg-clip-text text-transparent mb-2">
             شوية اسأله حب وضحك يعني
           </h1>
-          <p className="text-sm text-gray-500">شوفي تعرفيني قد ايه</p>
+          <p className="text-sm text-gray-500">شوفي تعرفيني قد اي��</p>
         </motion.div>
 
         <Card className="max-w-2xl mx-auto bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-6 mb-8 border border-amber-100">
           <AnimatePresence mode="wait">
             {!showResult ? (
               <motion.div key="question" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <div className="flex justify-between items-center mb-6">
+                <div className="text-center mb-6">
                   <h2 className="text-2xl font-semibold">إنتي تعرفيني كويس؟</h2>
-                  <div className="flex items-center">
-                    <div
-                      className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold ${
-                        timer <= 5 ? "bg-red-500" : timer <= 10 ? "bg-amber-500" : "bg-teal-500"
-                      }`}
-                    >
-                      {timer}
-                    </div>
-                  </div>
                 </div>
 
                 <div className="relative mb-8 bg-gradient-to-r from-amber-50 to-orange-50 p-5 rounded-lg">
@@ -283,35 +204,15 @@ export default function Noon() {
                   </div>
                   <p className="text-xl mb-4 pt-2">{questions[currentQuestion].question}</p>
 
-                  <RadioGroup value={selectedOption} className="space-y-3">
-                    {questions[currentQuestion].options.map((option, index) => (
-                      <motion.div
-                        key={index}
-                        className="flex items-center space-x-2 space-x-reverse bg-white p-3 rounded-lg border border-amber-100 shadow-sm hover:shadow-md transition-all cursor-pointer"
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => setSelectedOption(option)}
-                      >
-                        <RadioGroupItem id={`option-${index}`} value={option} />
-                        <Label htmlFor={`option-${index}`} className="text-lg w-full cursor-pointer">
-                          {option}
-                        </Label>
-                      </motion.div>
-                    ))}
-                  </RadioGroup>
-                  {currentQuestion === 2 && selectedOption === "غيرهم" && (
-                    <div className="mt-4">
-                      <Label htmlFor="custom-answer" className="text-md">اكتبي إجابتك هنا</Label>
-                      <input
-                        id="custom-answer"
-                        type="text"
-                        value={customAnswer}
-                        onChange={e => setCustomAnswer(e.target.value)}
-                        className="w-full p-2 border border-amber-200 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 mt-2"
-                        placeholder="اكتبي إجابتك..."
-                      />
-                    </div>
-                  )}
+                  <div className="mt-4">
+                    <input
+                      type="text"
+                      value={selectedOption}
+                      onChange={e => setSelectedOption(e.target.value)}
+                      className="w-full p-4 text-lg border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 mt-2 bg-white shadow-sm"
+                      placeholder=" "
+                    />
+                  </div>
                 </div>
 
                 <div className="flex justify-between items-center">
@@ -346,41 +247,15 @@ export default function Noon() {
                 <h2 className="text-2xl font-semibold mb-6 text-center">النتيجة!</h2>
 
                 <div className="mb-8">
-                  {getCorrectAnswersCount() === questions.length ? (
-                    <div className="text-center">
-                      <div className="w-20 h-20 mx-auto bg-gradient-to-r from-teal-400 to-green-500 rounded-full flex items-center justify-center mb-4 shadow-lg">
-                        <CheckCircle2 className="h-10 w-10 text-white" />
-                      </div>
-                      <p className="text-2xl font-bold text-teal-600 mb-4">إنتي شطورههه عارفة كل حاجة عني ❤️</p>
-                      <div className="p-6 bg-gradient-to-r from-teal-50 to-green-50 rounded-lg shadow-inner">
-                        <p className="text-lg">جاوبتي على كل الاسئله يروحقلبي انتي تعرفيني اويييي🥹❤</p>
-                      </div>
+                  <div className="text-center">
+                    <div className="w-20 h-20 mx-auto bg-gradient-to-r from-teal-400 to-green-500 rounded-full flex items-center justify-center mb-4 shadow-lg">
+                      <CheckCircle2 className="h-10 w-10 text-white" />
                     </div>
-                  ) : getCorrectAnswersCount() > questions.length / 2 ? (
-                    <div className="text-center">
-                      <div className="w-20 h-20 mx-auto bg-gradient-to-r from-amber-400 to-orange-500 rounded-full flex items-center justify-center mb-4 shadow-lg">
-                        <HelpCircle className="h-10 w-10 text-white" />
-                      </div>
-                      <p className="text-2xl font-bold text-amber-600 mb-4">تقريباً عارفاني كويس😄</p>
-                      <div className="p-6 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg shadow-inner">
-                        <p className="text-lg">
-                          جاوبتي على {getCorrectAnswersCount()} من {questions.length} أسئلة صح
-                        </p>
-                      </div>
+                    <p className="text-2xl font-bold text-teal-600 mb-4">إنتي شطورههه عارفة كل حاجة عني ❤️</p>
+                    <div className="p-6 bg-gradient-to-r from-teal-50 to-green-50 rounded-lg shadow-inner">
+                      <p className="text-lg" >جاوبتي على كل الاسئله يروحقلبي انتي تعرفيني اويييي🥹❤</p>
                     </div>
-                  ) : (
-                    <div className="text-center">
-                      <div className="w-20 h-20 mx-auto bg-gradient-to-r from-red-400 to-pink-500 rounded-full flex items-center justify-center mb-4 shadow-lg">
-                        <XCircle className="h-10 w-10 text-white" />
-                      </div>
-                      <p className="text-2xl font-bold text-red-500 mb-4">نو نو نو انتي كده متعرفنيشش😔</p>
-                      <div className="p-6 bg-gradient-to-r from-red-50 to-pink-50 rounded-lg shadow-inner">
-                        <p className="text-lg">
-                          جاوبتي على {getCorrectAnswersCount()} من {questions.length} صح أسئله
-                        </p>
-                      </div>
-                    </div>
-                  )}
+                  </div>
                 </div>
 
                 <div className="flex justify-center mb-8">
@@ -408,7 +283,7 @@ export default function Noon() {
                         className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white px-6 py-3 rounded-full text-lg transition-all duration-300 shadow-md hover:shadow-lg w-full"
                       >
                         <Laugh className="ml-2 h-5 w-5" />
-                        اكتشفي الألعاب
+                        اكتشفي الأ��عاب
                       </Button>
                     </motion.div>
                   ) : (
@@ -666,4 +541,3 @@ export default function Noon() {
     </div>
   )
 }
-

@@ -171,6 +171,46 @@ export async function getMemories() {
   }
 }
 
+// Function to save quiz answer with local storage fallback
+export async function saveQuizAnswer(question: string, answer: string) {
+  // First try to save to local storage as a fallback
+  try {
+    const localAnswers = JSON.parse(localStorage.getItem('quiz_answers') || '[]');
+    const newAnswer = {
+      id: Date.now().toString(),
+      question,
+      answer,
+      created_at: new Date().toISOString()
+    };
+    localAnswers.push(newAnswer);
+    localStorage.setItem('quiz_answers', JSON.stringify(localAnswers));
+    
+    // If Supabase is not configured, return the local answer
+    if (!supabase) {
+      console.log("Supabase not configured. Answer saved locally.");
+      return [newAnswer];
+    }
+
+    // Try to save to Supabase
+    const { data, error } = await supabase
+      .from("quiz_answers")
+      .insert([{ question, answer }])
+      .select();
+
+    if (error) {
+      console.warn("Failed to save to Supabase, using local storage:", error.message);
+      return [newAnswer];
+    }
+
+    console.log("Answer saved to Supabase:", data);
+    return data;
+  } catch (error: any) {
+    console.error("Error in saveQuizAnswer:", error);
+    // Return null instead of throwing to prevent unhandled rejections
+    return null;
+  }
+}
+
 // دوال للتعامل مع التسجيلات الصوتية
 export async function saveAudioRecording(url: string) {
   try {
@@ -193,7 +233,7 @@ export async function saveAudioRecording(url: string) {
 
 export async function getAudioRecordings() {
   try {
-    // إذا كان Supabase متاح، استخدمه
+    // إذا كان Supabase متاح، ��ستخدمه
     if (supabase) {
       const { data, error } = await supabase
         .from("audio_recordings")
@@ -252,4 +292,3 @@ export async function getUploadedImages(): Promise<string[]> {
     return []
   }
 }
-
