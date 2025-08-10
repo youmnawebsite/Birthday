@@ -36,7 +36,7 @@ export default function Noon() {
 
   const questions = [
     {
-      question: "ردك هيوصلي",
+      question: "اللي هتكتبيه هيوصلي",
       type: "text" // This indicates it's a text input question
     },
   ]
